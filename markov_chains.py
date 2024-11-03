@@ -4,9 +4,11 @@ import matplotlib.pyplot as plt
 import math
 import numpy as np
 
+#load in data
+
 blood_glucose = pd.read_csv(r"C:\Users\alexa\Downloads\New_BS.csv")
 
-#bg = blood_glucose[["]]
+#return list of keys
 
 def getKeys(dictionary):
     lst = []
@@ -14,6 +16,8 @@ def getKeys(dictionary):
         lst.append(i)
         
     return lst
+
+#return a list of numbers seperated by anything non numerical from a string
 
 def gettimeDataArray(str):
     sub = ""
@@ -31,11 +35,17 @@ def gettimeDataArray(str):
 
 print(blood_glucose.dtypes)
 
+
+
+#seperate the data into two list and discard the date part of the time data
+
 raw_time = blood_glucose["Device Timestamp"]
 raw_levels = blood_glucose["Historic Glucose mmol/L"]
 
 day_times = []
 levels = []
+
+#which data points to use
 
 N = 63152
 #N = 55750
@@ -50,7 +60,11 @@ for i in range(start,N):
     day_times.append(Time[-1]/60+Time[-2])
     levels.append(raw_levels[i])
     
+    
 t = float("-inf")
+
+#state_boundaries defines how we will break the continuos glucose levels into discrete states to use markov chains
+# <4 corresponds to hypo(-glycemia), >10 corresponds to varying degrees of hyper
 
 state_boundaries = [4,7,10,15,20]
 
@@ -70,6 +84,10 @@ transition_sums = []
 
 transition_nums = []
 
+#setup our 0 intialised transition counters which tracks how many times each state went to each other state at each time-chunk
+#along with how many times that state went to any given state
+#dividing the former by the latter will give us our probabilities of transitioning from one state to another
+
 for i in range(chunks):
     chunk_data.append([])
     transition_num1 = []
@@ -83,6 +101,8 @@ for i in range(chunks):
     transition_sums.append(transition_sum1)
     transition_nums.append(transition_num1)
 
+#converts from our continuos glucose levels to the state space using the state_boundaries we defined earlier
+#(n boundaries gives n+1 states)
 
 def getState(num):
     state = num_bounds
@@ -92,6 +112,8 @@ def getState(num):
             break
            
     return state
+
+#combining our glucose data into hour long averaged chunks and converting to states
 
 consecutive_state_chunks = []
 consecutive_state_chunk = []
@@ -124,6 +146,8 @@ for i in range(0,length):
         continue
     j = math.floor(t/chunk_size)
     chunk_data[j].append(l)
+
+#populating our trasition counter
     
 for chunk in consecutive_state_chunks:
     prev_state = chunk[0][1]    
@@ -137,6 +161,15 @@ for chunk in consecutive_state_chunks:
         transition_sums[t][prev_state][state] +=1
         transition_nums[t][prev_state] +=1
         prev_state = state
+
+
+#setting up a matrix to store our transition probabilities
+#labeled temp because it can be converted to a proper np matrix to update distributions of what state it is in
+#however we dont make use of this feature
+
+#since we are actually creating 24 different transition matrices (one for each chunk) and we're working with a small data set
+#not every transtion probability will be known so we infer it by averaging the known rows from the other chunks
+#failing to have any information on how that state evolves we assume it transitions to every state with equal probability
 
 trans_matrixes_temp = []
 
@@ -184,6 +217,8 @@ for i in range(num_states):
     for j in range(chunks):
         if j in average_replaced_lists[i]:
             trans_matrixes_temp[j][i] = temp_prob
+
+#working out the most likely states and times to lead to a hypo in the next chunk
         
 top_hypo = {}
 
@@ -200,6 +235,8 @@ keys.sort(reverse = True)
 for k in keys:
     print(k, end=" ")
     print(top_hypo[k])
+
+#... a hyper in the next chunk
     
 top_hyper = {}
 
@@ -218,6 +255,8 @@ keys.sort(reverse = True)
 for k in keys:
     print(k, end=" ")
     print(top_hyper[k])
+
+#plotting the pobability that state 1 (10-15 mmol/L) leads to subsequent hypo in various time chunks
         
 x = []
 y = []
